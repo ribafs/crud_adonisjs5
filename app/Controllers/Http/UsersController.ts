@@ -1,15 +1,19 @@
 import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
-import User from 'App/Models/User'
 import Database from '@ioc:Adonis/Lucid/Database'
 import { DateTime } from 'luxon'
+
+import User from 'App/Models/User'
+import CreateUser from 'App/Validators/User/CreateUserValidator'
+import UpdateUser from 'App/Validators/User/UpdateUserValidator'
 
 export default class UsersController {
   public async index({ request, response }: HttpContextContract) {
     try {
-      const users = await Database.from('users').paginate(request.qs().page, request.qs().qtd)
+      const users = (
+        await Database.from('users').paginate(request.qs().page, request.qs().qtd)
+      ).toJSON()
 
-      const usersJSON = users.toJSON()
-      return response.status(200).send(usersJSON)
+      return response.status(200).send(users)
     } catch (error) {
       return response
         .status(500)
@@ -18,21 +22,9 @@ export default class UsersController {
   }
 
   public async store({ request, response }: HttpContextContract) {
+    const payload = await request.validate(CreateUser)
     try {
-      const data = request.only(['name', 'username', 'email', 'password'])
-
-      if (!data.name || !data.username || !data.email || !data.password) {
-        return response
-          .status(400)
-          .send({ error: 'One or more fields are empty. Please check and try again.' })
-      }
-
-      const user = await User.create({
-        name: data.name,
-        username: data.username,
-        email: data.email,
-        password: data.password,
-      })
+      const user = await User.create(payload)
 
       if (user) {
         return response.status(201).send(user)
@@ -64,9 +56,8 @@ export default class UsersController {
   }
 
   public async update({ params, request, response }: HttpContextContract) {
+    const [user, payload] = await Promise.all([User.find(params.id), request.validate(UpdateUser)])
     try {
-      const user = await User.find(params.id)
-
       if (!user) {
         return response.status(404).send({
           message:
@@ -74,25 +65,29 @@ export default class UsersController {
         })
       }
 
-      if (request.body().name !== '' && user.name !== request.body().name) {
-        user.name = request.body().name
+      if (payload.name && user.name !== payload.name) {
+        user.name = String(payload.name)
       }
 
-      if (request.body().username !== '' && user.username !== request.body().username) {
-        user.username = request.body().username
+      if (payload.username && user.username !== payload.username) {
+        user.username = String(payload.username)
       }
 
-      if (request.body().email !== '' && user.email !== request.body().email) {
-        user.email = request.body().email
+      if (payload.email && user.email !== payload.email) {
+        user.email = String(payload.email)
       }
 
-      if (request.body().password !== '' && user.password !== request.body().password) {
-        user.password = request.body().password
+      if (payload.password && user.password !== payload.password) {
+        user.password = String(payload.password)
       }
 
       user.updatedAt = DateTime.local()
 
-      await user.save()
+      if (!(await user.save())) {
+        return response.status(500).send({ error: 'Unable to change user information.' })
+      }
+
+      return response.status(201).send(user)
     } catch (error) {
       return response
         .status(500)

@@ -3,6 +3,8 @@ import { BaseModel, beforeSave, column } from '@ioc:Adonis/Lucid/Orm'
 import { DateTime } from 'luxon'
 
 export default class User extends BaseModel {
+  public static table = 'users'
+
   @column({ isPrimary: true })
   public id: number
 
@@ -25,9 +27,9 @@ export default class User extends BaseModel {
   public updatedAt: DateTime
 
   @beforeSave()
-  public static async hashPassword(user: User) {
-    if (user.$dirty.password) {
-      user.password = await Hash.make(user.password)
+  public static async hashPassword(users: User) {
+    if (users.$dirty.password) {
+      users.password = await Hash.make(users.password)
     }
   }
 }
